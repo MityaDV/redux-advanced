@@ -3,7 +3,8 @@ import { mainActions } from './main-slice';
 
 const initialState = {
   items: [],
-  itemsQuantity: 0
+  itemsQuantity: 0,
+  isCartContentChanged: false
 };
 
 const cartSlice = createSlice({
@@ -14,6 +15,7 @@ const cartSlice = createSlice({
       const newItem = action.payload;
       const existingItem = state.items.find((i) => i.id === newItem.id);
       state.itemsQuantity++;
+      state.isCartContentChanged = true;
 
       if (!existingItem) {
         state.items.push({
@@ -32,6 +34,7 @@ const cartSlice = createSlice({
       const id = action.payload;
       const existingItem = state.items.find((i) => i.id === id);
       state.itemsQuantity--;
+      state.isCartContentChanged = true;
 
       if (existingItem.quantity === 1) {
         state.items = state.items.filter((i) => i.id !== id);
@@ -39,11 +42,11 @@ const cartSlice = createSlice({
         existingItem.quantity--;
         existingItem.totalPrice = existingItem.totalPrice - existingItem.price;
       }
+    },
+    updateCart: (state, action) => {
+      state.items = action.payload.items;
+      state.itemsQuantity = action.payload.itemsQuantity;
     }
-    // updateCart: (state, action) => {
-    //   state.items = action.payload.items;
-    //   state.itemsQuantity = action.payload.itemsQuantity;
-    // }
   }
 });
 
@@ -57,12 +60,15 @@ export const sendCartData = (cartData) => {
       })
     );
 
-    const sentHttpRequest = async () => {
+    const sendDataHttpRequest = async () => {
       const res = await fetch(
         'https://react-cours-http-3ee12-default-rtdb.firebaseio.com/cart.json',
         {
           method: 'PUT',
-          body: JSON.stringify(cartData)
+          body: JSON.stringify({
+            items: cartData.items,
+            itemsQuantity: cartData.itemsQuantity
+          })
         }
       );
 
@@ -72,7 +78,7 @@ export const sendCartData = (cartData) => {
     };
 
     try {
-      await sentHttpRequest();
+      await sendDataHttpRequest();
 
       dispatch(
         mainActions.showStatusMessage({
@@ -85,7 +91,7 @@ export const sendCartData = (cartData) => {
       dispatch(
         mainActions.showStatusMessage({
           status: 'error',
-          title: 'Error Sendining Data',
+          title: 'Error Sending Data',
           message: 'Failed to fetch cart data.'
         })
       );
@@ -94,5 +100,43 @@ export const sendCartData = (cartData) => {
 };
 
 export const cartActions = cartSlice.actions;
+
+export const getCartData = () => {
+  return async (dispatch) => {
+    const getDataHttpRequest = async () => {
+      const res = await fetch(
+        'https://react-cours-http-3ee12-default-rtdb.firebaseio.com/cart.json'
+      );
+      if (!res.ok) {
+        throw new Error('Failed to fetch cart data.');
+      }
+
+      const resData = await res.json();
+
+      return resData;
+    };
+    try {
+      const cartData = await getDataHttpRequest();
+
+      const items = cartData?.items || [];
+      const itemsQuantity = cartData.itemsQuantity;
+
+      dispatch(
+        cartActions.updateCart({
+          items: items,
+          itemsQuantity: itemsQuantity
+        })
+      );
+    } catch (e) {
+      dispatch(
+        mainActions.showStatusMessage({
+          status: 'error',
+          title: 'Error Getting Data',
+          message: 'Failed to fetch cart data.'
+        })
+      );
+    }
+  };
+};
 
 export default cartSlice.reducer;
